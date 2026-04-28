@@ -15,11 +15,11 @@
         .senha-tv { font-size: 6rem; font-weight: bold; background: var(--card); padding: 20px; border-radius: 15px; border-bottom: 8px solid #444; }
         #tela-controle { padding: 20px; max-width: 500px; margin: 0 auto; }
         .input-box { display: flex; gap: 10px; margin-bottom: 20px; }
-        input { flex: 1; padding: 15px; font-size: 2rem; border-radius: 8px; border: none; text-align: center; }
-        .btn-add { background: var(--red); color: white; padding: 0 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; }
+        input { flex: 1; padding: 15px; font-size: 2rem; border-radius: 8px; border: none; text-align: center; background: white; color: black; }
+        .btn-add { background: var(--red); color: white; padding: 0 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; font-size: 1.2rem; }
         .item-ctrl { background: var(--card); margin-bottom: 10px; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 10px solid var(--red); }
         .item-pronto { border-left-color: var(--green); }
-        button.acao { padding: 10px 15px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; color: white; }
+        button.acao { padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; color: white; font-size: 1rem; }
         .btn-ok { background: var(--green); }
         .btn-del { background: #555; }
         [hidden] { display: none !important; }
@@ -55,23 +55,26 @@
             if(!n) return;
             await _supabase.from('pedidos').insert([{ numero: n, status: 'preparo' }]);
             document.getElementById('num').value = '';
+            render();
         }
 
         async function mover(id) {
             await _supabase.from('pedidos').update({ status: 'pronto' }).eq('id', id);
+            render();
         }
 
         async function apagar(id) {
             await _supabase.from('pedidos').delete().eq('id', id);
+            render();
         }
 
         async function render() {
-            const { data: pedidos } = await _supabase.from('pedidos').select('*').order('id', { ascending: true });
-            if(!pedidos) return;
+            const { data: pedidos, error } = await _supabase.from('pedidos').select('*').order('id', { ascending: true });
+            if(error) return;
 
             if(modo === 'tv') {
                 const oldPronto = document.getElementById('grid-pronto').innerHTML;
-                const pre = pedidos.filter(x => x.status === 'preparo');
+                const pre = pedidos.filter(x => x.status !== 'pronto');
                 const pro = pedidos.filter(x => x.status === 'pronto');
                 
                 document.getElementById('grid-preparo').innerHTML = pre.map(x => `<div class="senha-tv">${x.numero}</div>`).join('');
@@ -83,7 +86,9 @@
                     <div class="item-ctrl ${x.status === 'pronto' ? 'item-pronto' : ''}">
                         <span>Senha <b>${x.numero}</b></span>
                         <div>
-                            ${x.status === 'preparo' ? `<button class="acao btn-ok" onclick="mover(${x.id})">PRONTO ✅</button>` : `<button class="acao btn-del" onclick="apagar(${x.id})">ENTREGUE 📦</button>`}
+                            ${x.status !== 'pronto' ? 
+                                `<button class="acao btn-ok" onclick="mover(${x.id})">PRONTO ✅</button>` : 
+                                `<button class="acao btn-del" onclick="apagar(${x.id})">ENTREGUE 📦</button>`}
                         </div>
                     </div>
                 `).join('');
