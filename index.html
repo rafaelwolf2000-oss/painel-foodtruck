@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Food Truck Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --bg: #1a1a1a; --card: #2d2d2d; --red: #e74c3c; --green: #2ecc71; --white: #ffffff; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--white); margin: 0; }
+        
+        /* TELA TV */
+        #tela-tv { display: flex; height: 100vh; overflow: hidden; }
+        .col { flex: 1; display: flex; flex-direction: column; border: 2px solid #333; }
+        .col h2 { font-size: 3rem; text-align: center; padding: 20px; margin: 0; background: #222; }
+        .preparo h2 { color: var(--red); }
+        .pronto h2 { color: var(--green); }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 20px; }
+        .senha { font-size: 6rem; font-weight: bold; background: var(--card); text-align: center; padding: 15px; border-radius: 15px; border-bottom: 8px solid #444; }
+        .pronto .senha { color: var(--green); border-color: var(--green); }
+        
+        /* TELA CONTROLE */
+        #tela-controle { padding: 20px; max-width: 550px; margin: 0 auto; }
+        .input-box { display: flex; gap: 10px; margin-bottom: 30px; }
+        input { flex: 1; padding: 15px; font-size: 2rem; border-radius: 8px; border: none; text-align: center; background: #fff; color: #000; }
+        .btn-add { background: var(--red); color: white; padding: 0 25px; border-radius: 8px; font-weight: bold; border: none; font-size: 1.2rem; cursor: pointer; }
+        
+        h3 { border-bottom: 2px solid #444; padding-bottom: 10px; }
+        .item-ctrl { background: var(--card); margin-bottom: 10px; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 10px solid transparent; }
+        .item-preparo { border-left-color: var(--red); }
+        .item-pronto { border-left-color: var(--green); }
+        
+        button.action { padding: 12px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; color: white; }
+        .btn-ok { background: var(--green); }
+        .btn-out { background: #555; }
+        
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="tela-tv" hidden>
+        <div class="col preparo"><h2>EM PREPARO</h2><div id="grid-preparo" class="grid"></div></div>
+        <div class="col pronto"><h2>PRONTOS</h2><div id="grid-pronto" class="grid"></div></div>
+    </div>
+
+    <div id="tela-controle" hidden>
+        <h2 style="text-align:center">GESTOR DE PEDIDOS</h2>
+        <div class="input-box">
+            <input type="number" id="num" placeholder="Nº Senha" inputmode="numeric">
+            <button class="btn-add" onclick="add()">CHAMAR</button>
+        </div>
+
+        <div id="secao-preparo">
+            <h3 style="color:var(--red)">Cozinha (Em Preparo)</h3>
+            <div id="lista-preparo-ctrl"></div>
+        </div>
+
+        <div id="secao-pronto">
+            <h3 style="color:var(--green)">Balcão (Prontos)</h3>
+            <div id="lista-pronto-ctrl"></div>
+        </div>
+    </div>
+
+    <audio id="som" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+
+    <script>
+        // Configurações do seu Supabase
+        const SUPABASE_URL = 'https://daqhteaqcraitmcgwmhc.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_CVahLsQGZYPI-x9Gbogcjw_DpBGMFGG'; 
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const params = new URLSearchParams(window.location.search);
+        const modo = params.get('modo');
+        const audio = document.getElementById('som');
+
+        // Define qual tela mostrar
+        if(modo === 'tv') document.getElementById('tela-tv').hidden = false;
+        else document.getElementById('tela-controle').hidden = false;
+
+        // Função para adicionar novo pedido
+        async function add() {
+            const n = document.getElementById('num').value;
+            if(!n) return;
+            await _supabase.from('pedidos').insert([{ numero: n, status: 'preparo' }]);
+            document.getElementById('num').value = '';
+        }
+
+        // Função para mover de Preparo para Pronto
+        async function moverParaPronto(id) {
+            await _supabase.from('pedidos').update({ status: 'pronto' }).eq('id', id);
+        }
+
+        // Função para remover pedido entregue
+        async function finalizarPedido(id) {
+            await _supabase.from('pedidos').delete().eq('id', id);
+        }
+
+        // Função que desenha as senhas na tela
+        async function render() {
+            const { data: pedidos, error } = await _supabase.from('pedidos').select('*').order('id', { ascending: true });
+            if(error) return;
+
+            const gPreparo = document.getElementById('grid-preparo');
+            const gPronto = document.getElementById('grid-pronto');
+            const lPreparo = document.getElementById('lista-preparo-ctrl');
+            const lPronto = document.getElementById('lista-pronto-ctrl');
+
+            if(modo === 'tv') {
+                const oldProntoCount = gPronto.children.length;
+                const pre = pedidos.filter(x => x.status === 'preparo').slice(0,6);
+                const pro = pedidos.filter(x => x.status === 'pronto').slice(0,6);
+
+                gPreparo.innerHTML = pre.map(x => `<div class="senha">${x.numero}</div>`).join('');
+                gPronto.innerHTML = pro.map(x => `<div class="senha">${x.numero}</div>`).join('');
+
+                // Toca o som se um novo pedido entrar nos "Prontos"
+                if(pro.length > oldProntoCount && oldProntoCount !== 0) {
+                    audio.play().catch(() => console.log("Clique na tela para ativar o som"));
+                }
+            } else {
+                lPreparo.innerHTML = pedidos.filter(x => x.status === 'preparo').map(x => `
+                    <div class="item-ctrl item-preparo">
+                        <span>Senha <b>${x.numero}</b></span>
+                        <button class="action btn-ok" onclick="moverParaPronto(${x.id})">PRONTO ✅</button>
+                    </div>
+                `).join('');
+                lPronto.innerHTML = pedidos.filter(x => x.status === 'pronto').map(x => `
+                    <div class="item-ctrl item-pronto">
+                        <span>Senha <b>${x.numero}</b></span>
+                        <button class="action btn-out" onclick="finalizarPedido(${x.id})">ENTREGUE 📦</button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Escuta mudanças no banco de dados em tempo real
+        _supabase.channel('pedidos')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, payload => {
+                render();
+            })
+            .subscribe();
+
+        // Carregamento inicial
+        render();
+    </script>
