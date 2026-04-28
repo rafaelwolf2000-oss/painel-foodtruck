@@ -2,67 +2,94 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Food Truck</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Food Truck Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { background: #1a1a1a; color: white; font-family: sans-serif; margin: 0; text-align: center; }
+        :root { --bg: #1a1a1a; --card: #2d2d2d; --red: #e74c3c; --green: #2ecc71; --white: #ffffff; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--white); margin: 0; text-align: center; }
         #tela-tv { display: flex; height: 100vh; }
-        .col { flex: 1; border: 2px solid #333; }
-        .senha { font-size: 5rem; background: #333; margin: 10px; border-radius: 10px; padding: 10px; }
-        .item-ctrl { background: #333; padding: 15px; margin: 10px; display: flex; justify-content: space-between; align-items: center; }
-        button { padding: 15px; font-weight: bold; cursor: pointer; }
-        [hidden] { display: none; }
+        .col { flex: 1; border: 2px solid #333; display: flex; flex-direction: column; }
+        .col h2 { font-size: 3rem; margin: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 20px; }
+        .senha-tv { font-size: 6rem; font-weight: bold; background: var(--card); padding: 20px; border-radius: 15px; border-bottom: 8px solid #444; }
+        #tela-controle { padding: 20px; max-width: 500px; margin: 0 auto; }
+        .input-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 15px; font-size: 2rem; border-radius: 8px; border: none; text-align: center; }
+        .btn-add { background: var(--red); color: white; padding: 0 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; }
+        .item-ctrl { background: var(--card); margin-bottom: 10px; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 10px solid var(--red); }
+        .item-pronto { border-left-color: var(--green); }
+        button.acao { padding: 10px 15px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; color: white; }
+        .btn-ok { background: var(--green); }
+        .btn-del { background: #555; }
+        [hidden] { display: none !important; }
     </style>
 </head>
 <body>
     <div id="tela-tv" hidden>
-        <div class="col"><h2 style="color:red">EM PREPARO</h2><div id="grid-preparo"></div></div>
-        <div class="col"><h2 style="color:green">PRONTOS</h2><div id="grid-pronto"></div></div>
+        <div class="col" style="color:var(--red)"><h2>EM PREPARO</h2><div id="grid-preparo" class="grid"></div></div>
+        <div class="col" style="color:var(--green)"><h2>PRONTOS</h2><div id="grid-pronto" class="grid"></div></div>
     </div>
+
     <div id="tela-controle" hidden>
-        <h2>GESTOR</h2>
-        <input type="number" id="num" style="font-size:2rem; width:100px">
-        <button onclick="add()">CHAMAR</button>
-        <div id="lista"></div>
+        <h2>GESTOR DE PEDIDOS</h2>
+        <div class="input-box">
+            <input type="number" id="num" placeholder="Nº">
+            <button class="btn-add" onclick="add()">CHAMAR</button>
+        </div>
+        <div id="lista-pedidos"></div>
     </div>
+
+    <audio id="som" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+
     <script>
         const _supabase = supabase.createClient('https://daqhteaqcraitmcgwmhc.supabase.co', 'sb_publishable_CVahLsQGZYPI-x9Gbogcjw_DpBGMFGG');
         const modo = new URLSearchParams(window.location.search).get('modo');
+        const audio = document.getElementById('som');
+
         if(modo === 'tv') document.getElementById('tela-tv').hidden = false;
         else document.getElementById('tela-controle').hidden = false;
 
         async function add() {
             const n = document.getElementById('num').value;
+            if(!n) return;
             await _supabase.from('pedidos').insert([{ numero: n, status: 'preparo' }]);
             document.getElementById('num').value = '';
-            render();
         }
+
         async function mover(id) {
             await _supabase.from('pedidos').update({ status: 'pronto' }).eq('id', id);
-            render();
         }
+
         async function apagar(id) {
             await _supabase.from('pedidos').delete().eq('id', id);
-            render();
         }
+
         async function render() {
-            const { data } = await _supabase.from('pedidos').select('*');
-            if(!data) return;
+            const { data: pedidos } = await _supabase.from('pedidos').select('*').order('id', { ascending: true });
+            if(!pedidos) return;
+
             if(modo === 'tv') {
-                document.getElementById('grid-preparo').innerHTML = data.filter(x => x.status !== 'pronto').map(x => `<div class="senha">${x.numero}</div>`).join('');
-                document.getElementById('grid-pronto').innerHTML = data.filter(x => x.status === 'pronto').map(x => `<div class="senha" style="color:green">${x.numero}</div>`).join('');
+                const oldPronto = document.getElementById('grid-pronto').innerHTML;
+                const pre = pedidos.filter(x => x.status === 'preparo');
+                const pro = pedidos.filter(x => x.status === 'pronto');
+                
+                document.getElementById('grid-preparo').innerHTML = pre.map(x => `<div class="senha-tv">${x.numero}</div>`).join('');
+                document.getElementById('grid-pronto').innerHTML = pro.map(x => `<div class="senha-tv" style="color:var(--green)">${x.numero}</div>`).join('');
+                
+                if(document.getElementById('grid-pronto').innerHTML !== oldPronto && oldPronto !== "") audio.play().catch(()=>{});
             } else {
-                document.getElementById('lista').innerHTML = data.map(x => `
-                    <div class="item-ctrl">
-                        <span>Senha ${x.numero} (${x.status})</span>
+                document.getElementById('lista-pedidos').innerHTML = pedidos.map(x => `
+                    <div class="item-ctrl ${x.status === 'pronto' ? 'item-pronto' : ''}">
+                        <span>Senha <b>${x.numero}</b></span>
                         <div>
-                            <button onclick="mover(${x.id})">PRONTO</button>
-                            <button onclick="apagar(${x.id})">OK</button>
+                            ${x.status === 'preparo' ? `<button class="acao btn-ok" onclick="mover(${x.id})">PRONTO ✅</button>` : `<button class="acao btn-del" onclick="apagar(${x.id})">ENTREGUE 📦</button>`}
                         </div>
                     </div>
                 `).join('');
             }
         }
+
         _supabase.channel('pedidos').on('postgres_changes', {event:'*', schema:'public', table:'pedidos'}, render).subscribe();
         render();
     </script>
